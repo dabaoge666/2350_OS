@@ -1,46 +1,58 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "hardware/uart.h"
-#include "hardware/gpio.h"
-#include "hardware/divider.h"
+#include "pico/platform.h"
 
-// GPIO defines
-// Example uses GPIO 2
-#define GPIO 2
+#include "FreeRTOS.h"
+#include "task.h"
 
+#define TASK_STACK_SIZE   1024
+#define TASK_PRIORITY     ( tskIDLE_PRIORITY + 1 )
 
+static void task_a(void *param)
+{
+    (void)param;
+    uint32_t count = 0;
+    while (true) {
+        printf("[task A] core %u, count %lu\n", get_core_num(), count++);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
 
+static void task_b(void *param)
+{
+    (void)param;
+    uint32_t count = 0;
+    while (true) {
+        printf("[task B] core %u, count %lu\n", get_core_num(), count++);
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+}
 
 int main()
 {
     // On this board stdio already uses uart1 on GP4/GP5 at 115200
     stdio_init_all();
+    printf("FreeRTOS %s starting on RP2350\n", tskKERNEL_VERSION_NUMBER);
 
-    // GPIO initialisation.
-    // We will make this GPIO an input, and pull it up by default
-    gpio_init(GPIO);
-    gpio_set_dir(GPIO, GPIO_IN);
-    gpio_pull_up(GPIO);
-    // See https://github.com/raspberrypi/pico-examples/tree/master/gpio for other gpio examples, including using interrupts
+    xTaskCreate(task_a, "task_a", TASK_STACK_SIZE, NULL, TASK_PRIORITY, NULL);
+    xTaskCreate(task_b, "task_b", TASK_STACK_SIZE, NULL, TASK_PRIORITY, NULL);
 
-    // Example of using the HW divider. The pico_divider library provides a more user friendly set of APIs 
-    // over the divider (and support for 64 bit divides), and of course by default regular C language integer
-    // divisions are redirected thru that library, meaning you can just use C level `/` and `%` operators and
-    // gain the benefits of the fast hardware divider.
-    int32_t dividend = 123456;
-    int32_t divisor = -321;
-    // This is the recommended signed fast divider for general use.
-    divmod_result_t result = hw_divider_divmod_s32(dividend, divisor);
-    printf("%d/%d = %d remainder %d\n", dividend, divisor, to_quotient_s32(result), to_remainder_s32(result));
-    // This is the recommended unsigned fast divider for general use.
-    int32_t udividend = 123456;
-    int32_t udivisor = 321;
-    divmod_result_t uresult = hw_divider_divmod_u32(udividend, udivisor);
-    printf("%d/%d = %d remainder %d\n", udividend, udivisor, to_quotient_u32(uresult), to_remainder_u32(uresult));
-    // See https://github.com/raspberrypi/pico-examples/tree/master/divider for more complex use
+    vTaskStartScheduler();
 
+    // Only reached if the scheduler could not allocate the idle/timer tasks
     while (true) {
-        printf("Hello, world!\n");
-        sleep_ms(1000);
+        tight_loop_contents();
     }
+}
+
+void vApplicationMallocFailedHook(void)
+{
+    printf("FreeRTOS: malloc failed\n");
+    panic("malloc failed");
+}
+
+void vApplicationStackOverflowHook(TaskHandle_t task, char *name)
+{
+    (void)task;
+    panic("stack overflow in task %s", name);
 }

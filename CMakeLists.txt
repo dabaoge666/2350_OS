@@ -30,6 +30,11 @@ project(2350_OS C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
+# FreeRTOS kernel (SMP port for RP2350 Arm cores)
+set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/lib/FreeRTOS-Kernel)
+set(FREERTOS_CONFIG_FILE_DIRECTORY ${CMAKE_CURRENT_LIST_DIR})
+include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/Community-Supported-Ports/GCC/RP2350_ARM_NTZ/FreeRTOS_Kernel_import.cmake)
+
 # Add executable. Default name is the project name, version 0.1
 
 add_executable(2350_OS 2350_OS.c )
@@ -43,7 +48,9 @@ pico_enable_stdio_usb(2350_OS 0)
 
 # Add the standard library to the build
 target_link_libraries(2350_OS
-        pico_stdlib)
+        pico_stdlib
+        FreeRTOS-Kernel
+        FreeRTOS-Kernel-Heap4)
 
 # Add the standard include files to the build
 target_include_directories(2350_OS PRIVATE
